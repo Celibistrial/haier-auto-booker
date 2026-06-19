@@ -1,0 +1,30 @@
+# --- secrets / local config (never commit) ---
+config.yaml
+config*.yaml
+!config.example.yaml
+keys_local.py
+.token.json
+
+# --- reverse-engineering capture artifacts (dev-only, may contain creds) ---
+capture_addon.py
+captures.jsonl
+*.log
+*.out
+*.jsonl
+
+# --- python build artifacts ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- virtualenvs ---
+.venv/
+venv/
+env/
+
+# --- local tooling / editor ---
+.claude/
+.idea/
+.vscode/
+.DS_Store
