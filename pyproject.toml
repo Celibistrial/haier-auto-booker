@@ -1,5 +1,5 @@
 [project]
-name = "washbot"
+name = "haier-auto-booker"
 version = "0.1.0"
 description = "Auto-booker for the Haier GlobalWasher campus-laundry app"
 readme = "README.md"

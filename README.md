@@ -1,4 +1,4 @@
-# washbot
+# Haier Auto Booker
 
 Auto-booker for the Haier **GlobalWasher** campus-laundry app
 (`com.haier.globalwasher`). Polls a target laundromat and books a washing machine
