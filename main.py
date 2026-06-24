@@ -136,6 +136,21 @@ def find_and_reserve(cfg: dict, client: Client, laundry_id: str, dev_type: str,
     return True, devices
 
 
+def ask_reserve_count(cfg: dict, interactive: bool) -> int:
+    """How many machines to reserve before stopping. Prompts when interactive,
+    else falls back to config max_reserves (cron/--once can't block on input)."""
+    default = max(1, int(cfg.get("max_reserves", 1)))
+    if not interactive:
+        return default
+    while True:
+        raw = input(f"how many to reserve? [{default}]: ").strip()
+        if not raw:
+            return default
+        if raw.isdigit() and int(raw) >= 1:
+            return int(raw)
+        print("  enter a whole number >= 1")
+
+
 def run_loop(cfg: dict, once: bool = False) -> None:
     client = Client.from_config(cfg)
     auth.ensure_session(client, cfg["phone"], cfg["password"],
@@ -155,7 +170,8 @@ def run_loop(cfg: dict, once: bool = False) -> None:
     # race mode polls at `floor` constantly; otherwise honor poll_interval (with a
     # courteous 10s default floor when not racing).
     base = floor if race else max(MIN_INTERVAL, int(cfg.get("poll_interval_sec", 30)))
-    max_reserves = int(cfg.get("max_reserves", 1))
+    # Ask how many to reserve in an interactive session; cron/--once use config.
+    max_reserves = ask_reserve_count(cfg, interactive=not once and sys.stdin.isatty())
     reserved: set[str] = set()
 
     # Warm the mode cache for a concrete watchlist so the first FREE event books
@@ -177,7 +193,8 @@ def run_loop(cfg: dict, once: bool = False) -> None:
             made, devices = find_and_reserve(cfg, client, laundry_id, dev_type,
                                              reserved, quiet=race)
             if made and len(reserved) >= max_reserves:
-                print(f"reached max_reserves={max_reserves}, stopping.")
+                print(f"reserved {len(reserved)}/{max_reserves} — done.")
+                reserve.chime()
                 return
             soonest = poll.soonest_free(devices)
             if race:

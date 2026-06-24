@@ -46,24 +46,26 @@ def _pick(items: list, render, prompt: str):
 
 
 def choose_laundry(client: Client, cfg: dict) -> tuple[str, str]:
-    """Return (laundry_id, dev_type)."""
-    dev_type = _ask("machine type — 1=washer 2=dryer", str(cfg.get("dev_type", "1")))
+    """Return (laundry_id, dev_type).
 
+    Machine type comes from config (dev_type) — no prompt. If coords are set we
+    auto-list nearby laundries to pick from; otherwise we ask for an id directly.
+    """
+    dev_type = str(cfg.get("dev_type", "1"))
     have_coords = cfg.get("longitude") is not None and cfg.get("latitude") is not None
-    if have_coords and _ask("find laundries near you? y/n", "y").lower().startswith("y"):
+    if have_coords:
         laundries = poll.nearby_laundries(
             client, cfg["longitude"], cfg["latitude"], dev_type)
-        if not laundries:
-            print("none found nearby; enter an id manually")
-            return _ask("laundryId"), dev_type
-        chosen = _pick(
-            laundries,
-            lambda it: (f"{it.get('laundry',{}).get('name','?')} "
-                        f"(id {it.get('laundry',{}).get('laundryId')}, "
-                        f"{it.get('distance','?')}m, "
-                        f"spare={it.get('laundry',{}).get('spareDeviceNumber','?')})"),
-            "pick a laundry")
-        return str(chosen["laundry"]["laundryId"]), dev_type
+        if laundries:
+            chosen = _pick(
+                laundries,
+                lambda it: (f"{it.get('laundry',{}).get('name','?')} "
+                            f"(id {it.get('laundry',{}).get('laundryId')}, "
+                            f"{it.get('distance','?')}m, "
+                            f"spare={it.get('laundry',{}).get('spareDeviceNumber','?')})"),
+                "pick a laundry")
+            return str(chosen["laundry"]["laundryId"]), dev_type
+        print("none found nearby; enter an id manually")
 
     return _ask("laundryId", str(cfg.get("laundry_id", ""))), dev_type
 
@@ -122,27 +124,34 @@ def run_menu(cfg: dict) -> None:
     if len(targets) == 1:
         fixed_mode = choose_mode(client, next(iter(targets)))
 
-    interval = int(_ask("poll every N seconds", str(cfg.get("poll_interval_sec", 30))))
-    interval = max(10, interval)
+    import main
+    want = main.ask_reserve_count(cfg, interactive=True)
+
+    # Poll interval comes from config (no prompt); 10s floor for courtesy.
+    interval = max(10, int(cfg.get("poll_interval_sec", 30)))
 
     # Warm the mode cache for concrete targets -> first FREE event books at 0 extra RTT.
     poll.prefetch_modes(client, targets, fixed_mode or cfg.get("prefer_mode_id"))
 
     tnames = ", ".join(sorted(targets)) if targets else "any free machine"
-    print(f"\nwatching {tnames} at laundry {laundry_id} every {interval}s.")
-    if input("type 'go' to start watch-and-reserve (anything else cancels): ").strip().lower() != "go":
+    print(f"\nwatching {tnames} at laundry {laundry_id} every {interval}s, "
+          f"reserving up to {want}.")
+    if input("type 'go' to start (anything else cancels): ").strip().lower() != "go":
         print("cancelled.")
         return
 
-    watch_and_reserve(client, cfg, laundry_id, dev_type, targets, fixed_mode, interval)
+    watch_and_reserve(client, cfg, laundry_id, dev_type, targets, fixed_mode,
+                      interval, want)
 
 
-def watch_and_reserve(client, cfg, laundry_id, dev_type, targets, fixed_mode, base):
+def watch_and_reserve(client, cfg, laundry_id, dev_type, targets, fixed_mode, base,
+                      want=1):
     """Interactive watch loop. Delegates each pass to main.find_and_reserve so the
     booking logic (status 1 vs 2 routing, mode resolution, notify) lives in ONE
-    place. Imported lazily to avoid a circular import (main imports menu)."""
+    place. Imported lazily to avoid a circular import (main imports menu).
+    Stops once `want` machines are reserved, then plays a done sound."""
     import main
-
+    import reserve
     reserved: set[str] = set()
     while True:
         print(time.strftime("[%H:%M:%S] polling"))
@@ -151,7 +160,9 @@ def watch_and_reserve(client, cfg, laundry_id, dev_type, targets, fixed_mode, ba
             made, devices = main.find_and_reserve(
                 cfg, client, laundry_id, dev_type, reserved,
                 target_ids=targets or None, fixed_mode=fixed_mode)
-            if made:
+            if made and len(reserved) >= want:
+                print(f"reserved {len(reserved)}/{want} — done.")
+                reserve.chime()
                 return
             # tighten as a machine nears finishing (same ladder as run_loop)
             soonest = poll.soonest_free(devices)

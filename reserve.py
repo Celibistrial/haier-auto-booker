@@ -8,6 +8,9 @@ After this you still pay + start manually in the real app.
 
 from __future__ import annotations
 
+import os
+import sys
+
 import requests
 
 from client import Client
@@ -89,3 +92,23 @@ def notify(message: str, ntfy_url: str | None) -> None:
         requests.post(ntfy_url, data=message.encode("utf-8"), timeout=10)
     except requests.RequestException:
         pass
+
+
+def chime() -> None:
+    """Best-effort 'done' sound when the run finishes: a terminal bell plus a
+    system sound on macOS. Silent and harmless if neither is available."""
+    try:
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+    except Exception:
+        pass
+    if sys.platform == "darwin":
+        import shutil
+        import subprocess
+        snd = "/System/Library/Sounds/Glass.aiff"
+        if shutil.which("afplay") and os.path.exists(snd):
+            try:
+                subprocess.Popen(["afplay", snd],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass

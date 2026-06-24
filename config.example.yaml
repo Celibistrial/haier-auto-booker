@@ -35,7 +35,8 @@ poll_interval_sec: 30       # steady-state interval (>= 10). NOTE: even with
                             # as a machine nears finishing — so the real fastest
                             # poll is poll_floor_sec, not 10s. Keep poll_floor_sec
                             # high if you want to stay courteous.
-max_reserves: 1             # stop after N successful holds
+max_reserves: 1             # how many to reserve, used non-interactively (cron/--once);
+                            # an interactive run asks you instead
 request_timeout_sec: 10     # per-request HTTP timeout
 ntfy_url: ""                # optional push, e.g. https://ntfy.sh/your-private-topic
 
