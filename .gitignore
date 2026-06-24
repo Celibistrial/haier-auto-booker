@@ -24,6 +24,7 @@ venv/
 env/
 
 # --- local tooling / editor ---
+CONTEXT.md
 .claude/
 .idea/
 .vscode/
